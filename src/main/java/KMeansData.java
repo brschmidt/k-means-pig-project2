@@ -12,7 +12,7 @@ public class KMeansData {
     {
         FileWriter myWriter = new FileWriter("data-points.csv");
 
-        for (int i = 0; i < 1000000; i++)
+        for (int i = 0; i < 1000000; i++) // 1,000,000 data points
         {
             int x = generateInt();
             int y = generateInt();
