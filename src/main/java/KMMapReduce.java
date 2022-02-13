@@ -1,6 +1,5 @@
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
@@ -9,10 +8,7 @@ import org.apache.hadoop.mapreduce.lib.input.NLineInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.GenericOptionsParser;
 
-import java.io.BufferedReader;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.TreeMap;
 import java.util.Map;
@@ -118,7 +114,7 @@ public class KMMapReduce {
         }
     }
 
-    public static class KReducer extends Reducer<Text, Text, Text, Text>
+    public static class CentroidsReducer extends Reducer<Text, Text, Text, Text>
     {
         private final Text newCentroid = new Text();
         private double xSum = 0;
@@ -146,44 +142,136 @@ public class KMMapReduce {
             String newCentroidStr = xAvg+","+yAvg;
             newCentroid.set(newCentroidStr);
 
-            //TODO
-            // If final iteration or convergence has been reached, then return with associated point
-            // Else just return new centroids
             context.write(newCentroid, new Text(""));
+
         }
     }
-    public void debug(String[] args) throws IOException, InterruptedException, ClassNotFoundException {
-        /* JOB 1 */
+
+    public static class FinalReducer extends Reducer<Text, Text, Text, Text>
+    {
+        private final Text newCentroid = new Text();
+        private final ArrayList< double[]> points = new ArrayList<>();
+        private double xSum = 0;
+        private double ySum = 0;
+        private double count = 0;
+
+        @Override
+        protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+
+            for(Text point: values)
+            {
+                String[] pointIn = point.toString().split(",");
+
+                double pointX = Double.parseDouble(pointIn[0]);
+                double pointY = Double.parseDouble(pointIn[1]);
+
+                points.add(new double[]{pointX, pointY});
+
+                xSum += pointX; // sum of X values
+                ySum += pointY; // sum of Y values
+
+                count++; // count of associated points
+            }
+            double xAvg = xSum / count; // new centroid x value
+            double yAvg = ySum / count; // new centroid y value
+
+            String newCentroidStr = xAvg+","+yAvg;
+            newCentroid.set(newCentroidStr);
+
+            // If final iteration or convergence has been reached, then return with associated point
+            for (double[] tuple : points)
+            {
+                String pointOut = tuple[0]+","+tuple[1];
+                context.write(newCentroid, new Text(pointOut));
+            }
+        }
+    }
+
+    public static void writeCentroids(int iteration, String fileIn) throws IOException
+    {
+        // args[2]+iteration+"/part-r-0000
+        File toRead = new File(fileIn+iteration+"/part-r-00000");
+        BufferedReader br = new BufferedReader(new FileReader(toRead));
+
+        String fileName = String.format("centroid-iteration%d.csv",iteration);
+//        String fileName = "new-centroids.csv";
+        FileWriter myWriter = new FileWriter(fileName);
+
+        String line;
+
+        while ((line = br.readLine()) != null)
+        {
+            myWriter.write(line+"\n");
+        }
+
+        br.close();
+        myWriter.close();
+    }
+
+    public void debug(String[] args) throws IOException, InterruptedException, ClassNotFoundException
+    {
         Configuration conf = new Configuration();
         String[] otherArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
+
+        boolean done = false;
 
         if (otherArgs.length < 3) {
             System.err.println("Error: please provide 2 paths");
             System.exit(2);
         }
 
-        Job job1 = Job.getInstance(conf, "K Means");
-        job1.setJarByClass(KMMapReduce.class);
+        Job job = Job.getInstance(conf, "K Means");
+        job.setJarByClass(KMMapReduce.class);
 
-        job1.setMapperClass(KMMapReduce.KMapper.class);
-        job1.setReducerClass(KMMapReduce.KReducer.class);
+        int R = Integer.parseInt(args[0]);
 
-        job1.setMapOutputKeyClass(Text.class);
-        job1.setMapOutputValueClass(Text.class);
+        for(int i = 0; i < R; i++) // loop through R times
+        {
+            job.setMapperClass(KMMapReduce.KMapper.class);
 
-        job1.setOutputKeyClass(Text.class);
-        job1.setOutputValueClass(Text.class);
+            if(i+1 == R) // if convergence == true || if i+1 = R, then: Final iteration reducer for job
+                job.setReducerClass(KMMapReduce.FinalReducer.class);
+            else
+                job.setReducerClass(KMMapReduce.CentroidsReducer.class);
 
-        job1.addFileToClassPath(new Path(args[2]));
+            job.setMapOutputKeyClass(Text.class);
+            job.setMapOutputValueClass(Text.class);
 
-        NLineInputFormat.addInputPath(job1, new Path(args[0]));
-        FileOutputFormat.setOutputPath(job1, new Path(args[1]));
+            job.setOutputKeyClass(Text.class);
+            job.setOutputValueClass(Text.class);
 
+            if (i != 0)
+                job.addFileToClassPath(new Path(args[2]+(i)+"/part-r-00000"));
+            else
+                job.addFileToClassPath(new Path(args[3]));
 
-        System.exit(job1.waitForCompletion(true) ? 0 : 1);
+            NLineInputFormat.addInputPath(job, new Path(args[1]));
+            FileOutputFormat.setOutputPath(job, new Path(args[2]+(i+1)));
+
+            done = job.waitForCompletion(true);
+
+            if(i+1 == R)
+            {
+                break;
+            }
+            else
+            {
+                // Configuration for next job
+                conf = new Configuration();
+                job = Job.getInstance(conf, "K Means Iterator");
+            }
+        }
+        System.exit( done ? 0 : 1);
     }
-
     public static void main(String[] args) {
+
+        //TODO
+        // Else just return new centroids - (diff reducer for final iterations/ convergence?)
+        // args[0] = R (iterations)
+        // args[1] = input filepath for first iteration
+        // args[2] = output path for first iteration/ input path for subsequent iterations
+        // args[3] = path to seed-points data file
+
         // ...
     }
 }
