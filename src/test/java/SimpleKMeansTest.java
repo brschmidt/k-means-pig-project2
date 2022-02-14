@@ -15,7 +15,7 @@ public class SimpleKMeansTest {
         // input data for 1st run
         input[1] = "/Users/bailey/DS4433_home/IdeaProjects/k-means-pig-project2/data-points.csv";
         // output location for 1st run
-        input[2] = "/Users/bailey/DS4433_home/IdeaProjects/k-means-pig-project2/output/simple-test1/iteration1-";
+        input[2] = "/Users/bailey/DS4433_home/IdeaProjects/k-means-pig-project2/output/simple-test1/iteration";
         // K seeds input
         input[3] = "/Users/bailey/DS4433_home/IdeaProjects/k-means-pig-project2/seed-points.csv";
 
@@ -41,7 +41,7 @@ public class SimpleKMeansTest {
         // input data for 1st run
         input[1] = "/Users/bailey/DS4433_home/IdeaProjects/k-means-pig-project2/data-points.csv";
         // output location for 1st run
-        input[2] = "/Users/bailey/DS4433_home/IdeaProjects/k-means-pig-project2/output/simple-test2/iteration2-";
+        input[2] = "/Users/bailey/DS4433_home/IdeaProjects/k-means-pig-project2/output/simple-test2/iteration";
         // K seeds input
         input[3] = "/Users/bailey/DS4433_home/IdeaProjects/k-means-pig-project2/seed-points.csv";
 
