@@ -13,95 +13,18 @@ import java.util.ArrayList;
 import java.util.TreeMap;
 import java.util.Map;
 
-public class KMMapReduce {
+/*
+Class to satisfy Part 1.1 - 1.2:
+    1.1 - 1 iteration
+    1.2 - 10 iterations
+    */
+public class SimpleKMeans {
 
     // Calculates euclidean distance between two x,y points
     private static double distanceBetweenTwo(double x1, double y1, double x2, double y2) {
         double xDist = x2 - x1;
         double yDist = y2 - y1;
         return Math.sqrt(xDist * xDist + yDist * yDist);
-    }
-
-    // Returns true if avg distance between two sets of centroids is <= 1000, otherwise returns false
-    private static boolean checkConvergence(int i, String filePath, String seedsFilePath) throws IOException {
-
-        ArrayList<double[]> lastCentroidList = new ArrayList<>();
-        ArrayList<double[]> currCentroidList = new ArrayList<>();
-
-        double avgDiff;
-        double diff = 0;
-
-        if (i <= 1)
-        {
-            String currCentroids = filePath + (i) + "/part-r-00000";
-
-            BufferedReader last = new BufferedReader(new FileReader(seedsFilePath));
-            BufferedReader current = new BufferedReader(new FileReader(currCentroids));
-            String line;
-
-            while ((line = last.readLine()) != null) {
-                String[] temp = line.split(",");
-                double tempX = Double.parseDouble(temp[0]);
-                double tempY = Double.parseDouble(temp[1]);
-                lastCentroidList.add(new double[]{tempX, tempY});
-            }
-            last.close();
-
-            while ((line = current.readLine()) != null) {
-                String[] temp = line.split(",");
-                double tempX = Double.parseDouble(temp[0]);
-                double tempY = Double.parseDouble(temp[1]);
-                currCentroidList.add(new double[]{tempX, tempY});
-            }
-            current.close();
-
-            int size = currCentroidList.size();
-
-            for (int j = 0; j < size; j++) {
-                double[] tup1 = lastCentroidList.get(j);
-                double[] tup2 = currCentroidList.get(j);
-                diff += Math.abs(distanceBetweenTwo(tup1[0], tup1[1], tup2[0], tup2[1]));
-            }
-            avgDiff = diff / size;
-
-            return avgDiff <= 1000;
-        }
-        else
-        {
-            String lastCentroids = filePath + (i-1) + "/part-r-00000";
-            String currCentroids = filePath + (i) + "/part-r-00000";
-
-            BufferedReader last = new BufferedReader(new FileReader(lastCentroids));
-            BufferedReader current = new BufferedReader(new FileReader(currCentroids));
-
-            String line;
-            while ((line = last.readLine()) != null) {
-                String[] temp = line.split(",");
-                double tempX = Double.parseDouble(temp[0]);
-                double tempY = Double.parseDouble(temp[1]);
-                lastCentroidList.add(new double[]{tempX, tempY});
-            }
-            last.close();
-
-            while ((line = current.readLine()) != null) {
-                String[] temp = line.split(",");
-                double tempX = Double.parseDouble(temp[0]);
-                double tempY = Double.parseDouble(temp[1]);
-                currCentroidList.add(new double[]{tempX, tempY});
-            }
-            current.close();
-
-            int size = lastCentroidList.size();
-
-            for (int j = 0; j < size; j++) {
-                double[] tup1 = lastCentroidList.get(j);
-                double[] tup2 = currCentroidList.get(j);
-                diff += Math.abs(distanceBetweenTwo(tup1[0], tup1[1], tup2[0], tup2[1]));
-            }
-            avgDiff = diff / size;
-
-            return avgDiff <= 1000;
-        }
     }
 
     // Mapper for data points to centroids
@@ -261,32 +184,16 @@ public class KMMapReduce {
         }
     }
 
-//    // unused function
-//    public static void writeCentroids(int iteration, String fileIn) throws IOException {
-//        // args[2]+iteration+"/part-r-0000
-//        File toRead = new File(fileIn + iteration + "/part-r-00000");
-//        BufferedReader br = new BufferedReader(new FileReader(toRead));
-//
-//        String fileName = String.format("centroid-iteration%d.csv", iteration);
-////        String fileName = "new-centroids.csv";
-//        FileWriter myWriter = new FileWriter(fileName);
-//
-//        String line;
-//
-//        while ((line = br.readLine()) != null) {
-//            myWriter.write(line + "\n");
-//        }
-//
-//        br.close();
-//        myWriter.close();
-//    }
+    public static void main(String[] args) throws IOException, InterruptedException, ClassNotFoundException {
 
-    public void debug(String[] args) throws IOException, InterruptedException, ClassNotFoundException {
+        // args[0] = R (iterations)
+        // args[1] = input filepath for first iteration
+        // args[2] = output path for first iteration/ input path for subsequent iterations
+        // args[3] = path to seed-points data file
+
         Configuration conf = new Configuration();
         String[] otherArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
-
         boolean done = false;
-        boolean converged = false;
 
         if (otherArgs.length < 3) {
             System.err.println("Error: please provide 2 paths");
@@ -294,21 +201,18 @@ public class KMMapReduce {
         }
 
         Job job = Job.getInstance(conf, "K Means");
-        job.setJarByClass(KMMapReduce.class);
+        job.setJarByClass(SimpleKMeans.class);
 
         int R = Integer.parseInt(args[0]);
 
         for (int i = 0; i < R; i++) // loop through R times
         {
-            done = false;
-            job.setMapperClass(KMMapReduce.KMapper.class);
+            job.setMapperClass(SimpleKMeans.KMapper.class);
 
-            if (i + 1 == R || converged) // if convergence == true || if i+1 = R, then: Final iteration reducer for job
-            {
-                job.setReducerClass(KMMapReduce.FinalReducer.class);
-            }
+            if (i + 1 == R) // if i+1 = R, then: Final iteration reducer for job
+                job.setReducerClass(SimpleKMeans.FinalReducer.class);
             else
-                job.setReducerClass(KMMapReduce.CentroidsReducer.class);
+                job.setReducerClass(SimpleKMeans.CentroidsReducer.class);
 
             job.setMapOutputKeyClass(Text.class);
             job.setMapOutputValueClass(Text.class);
@@ -317,41 +221,73 @@ public class KMMapReduce {
             job.setOutputValueClass(Text.class);
 
             if (i != 0)
-            {
                 job.addFileToClassPath(new Path(args[2] + (i) + "/part-r-00000"));
-            }
             else
                 job.addFileToClassPath(new Path(args[3]));
 
             NLineInputFormat.addInputPath(job, new Path(args[1]));
             FileOutputFormat.setOutputPath(job, new Path(args[2] + (i + 1)));
 
-            while (!done)
-                done = job.waitForCompletion(true);
-
-            if (converged)
-                break;
+            done = job.waitForCompletion(true);
 
             // Configuration for next job
             conf = new Configuration();
-            job = Job.getInstance(conf, "K Means Iterator"+i);
-
-            // Must be later than first iteration to check convergence, otherwise FileNotFound Error occurs
-            if (i > 0)
-                converged = checkConvergence(i, args[2], args[3]);
+            job = Job.getInstance(conf, "K Means Iterator");
         }
         System.exit(done ? 0 : 1);
     }
 
-    public static void main(String[] args) {
+    public void debug(String[] args) throws IOException, InterruptedException, ClassNotFoundException {
 
-        //TODO
-        // Else just return new centroids - (diff reducer for final iterations/ convergence?)
         // args[0] = R (iterations)
         // args[1] = input filepath for first iteration
         // args[2] = output path for first iteration/ input path for subsequent iterations
         // args[3] = path to seed-points data file
 
-        // ...
+        Configuration conf = new Configuration();
+        String[] otherArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
+        boolean done = false;
+
+        if (otherArgs.length < 3) {
+            System.err.println("Error: please provide 2 paths");
+            System.exit(2);
+        }
+
+        Job job = Job.getInstance(conf, "K Means");
+        job.setJarByClass(SimpleKMeans.class);
+
+        int R = Integer.parseInt(args[0]);
+
+        for (int i = 0; i < R; i++) // loop through R times
+        {
+            job.setMapperClass(SimpleKMeans.KMapper.class);
+
+            if (i + 1 == R) // if i+1 = R, then: Final iteration reducer for job
+                job.setReducerClass(SimpleKMeans.FinalReducer.class);
+            else
+                job.setReducerClass(SimpleKMeans.CentroidsReducer.class);
+
+            job.setMapOutputKeyClass(Text.class);
+            job.setMapOutputValueClass(Text.class);
+
+            job.setOutputKeyClass(Text.class);
+            job.setOutputValueClass(Text.class);
+
+            if (i != 0)
+                job.addFileToClassPath(new Path(args[2] + (i) + "/part-r-00000"));
+            else
+                job.addFileToClassPath(new Path(args[3]));
+
+            NLineInputFormat.addInputPath(job, new Path(args[1]));
+            FileOutputFormat.setOutputPath(job, new Path(args[2] + (i + 1)));
+
+            done = job.waitForCompletion(true);
+
+            // Configuration for next job
+            conf = new Configuration();
+            job = Job.getInstance(conf, "K Means Iterator");
+        }
+        System.exit(done ? 0 : 1);
     }
+
 }

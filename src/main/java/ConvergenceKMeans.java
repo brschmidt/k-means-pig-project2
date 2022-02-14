@@ -8,12 +8,19 @@ import org.apache.hadoop.mapreduce.lib.input.NLineInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.GenericOptionsParser;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.TreeMap;
 import java.util.Map;
+import java.util.TreeMap;
 
-public class KMMapReduce {
+/*
+Class to satisfy Part 1.3:
+    1.3 - convergence criteria
+    */
+public class ConvergenceKMeans {
 
     // Calculates euclidean distance between two x,y points
     private static double distanceBetweenTwo(double x1, double y1, double x2, double y2) {
@@ -125,7 +132,7 @@ public class KMMapReduce {
 
             for (Path eachPath : filePath) {
                 if (eachPath.getName().trim().equals("seed-points.csv")) {
-                    context.getCounter(COUNTERS.FILE_EXISTS).increment(1);
+                    context.getCounter(ConvergenceKMeans.KMapper.COUNTERS.FILE_EXISTS).increment(1);
                 }
                 loadMap(eachPath.getName(), context);
             }
@@ -149,9 +156,9 @@ public class KMMapReduce {
                 }
             } catch (FileNotFoundException e) {
                 e.printStackTrace();
-                context.getCounter(COUNTERS.FILE_NOT_FOUND).increment(1);
+                context.getCounter(ConvergenceKMeans.KMapper.COUNTERS.FILE_NOT_FOUND).increment(1);
             } catch (IOException e) {
-                context.getCounter(COUNTERS.SOME_OTHER_ERROR).increment(1);
+                context.getCounter(ConvergenceKMeans.KMapper.COUNTERS.SOME_OTHER_ERROR).increment(1);
                 e.printStackTrace();
             } finally {
                 if (brReader != null) {
@@ -261,27 +268,7 @@ public class KMMapReduce {
         }
     }
 
-//    // unused function
-//    public static void writeCentroids(int iteration, String fileIn) throws IOException {
-//        // args[2]+iteration+"/part-r-0000
-//        File toRead = new File(fileIn + iteration + "/part-r-00000");
-//        BufferedReader br = new BufferedReader(new FileReader(toRead));
-//
-//        String fileName = String.format("centroid-iteration%d.csv", iteration);
-////        String fileName = "new-centroids.csv";
-//        FileWriter myWriter = new FileWriter(fileName);
-//
-//        String line;
-//
-//        while ((line = br.readLine()) != null) {
-//            myWriter.write(line + "\n");
-//        }
-//
-//        br.close();
-//        myWriter.close();
-//    }
-
-    public void debug(String[] args) throws IOException, InterruptedException, ClassNotFoundException {
+    public static void main(String[] args) throws IOException, InterruptedException, ClassNotFoundException {
         Configuration conf = new Configuration();
         String[] otherArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
 
@@ -294,21 +281,21 @@ public class KMMapReduce {
         }
 
         Job job = Job.getInstance(conf, "K Means");
-        job.setJarByClass(KMMapReduce.class);
+        job.setJarByClass(ConvergenceKMeans.class);
 
         int R = Integer.parseInt(args[0]);
 
         for (int i = 0; i < R; i++) // loop through R times
         {
             done = false;
-            job.setMapperClass(KMMapReduce.KMapper.class);
+            job.setMapperClass(ConvergenceKMeans.KMapper.class);
 
             if (i + 1 == R || converged) // if convergence == true || if i+1 = R, then: Final iteration reducer for job
             {
-                job.setReducerClass(KMMapReduce.FinalReducer.class);
+                job.setReducerClass(ConvergenceKMeans.FinalReducer.class);
             }
             else
-                job.setReducerClass(KMMapReduce.CentroidsReducer.class);
+                job.setReducerClass(ConvergenceKMeans.CentroidsReducer.class);
 
             job.setMapOutputKeyClass(Text.class);
             job.setMapOutputValueClass(Text.class);
@@ -343,15 +330,65 @@ public class KMMapReduce {
         System.exit(done ? 0 : 1);
     }
 
-    public static void main(String[] args) {
+    public void debug(String[] args) throws IOException, InterruptedException, ClassNotFoundException {
+        Configuration conf = new Configuration();
+        String[] otherArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
 
-        //TODO
-        // Else just return new centroids - (diff reducer for final iterations/ convergence?)
-        // args[0] = R (iterations)
-        // args[1] = input filepath for first iteration
-        // args[2] = output path for first iteration/ input path for subsequent iterations
-        // args[3] = path to seed-points data file
+        boolean done = false;
+        boolean converged = false;
 
-        // ...
+        if (otherArgs.length < 3) {
+            System.err.println("Error: please provide 2 paths");
+            System.exit(2);
+        }
+
+        Job job = Job.getInstance(conf, "K Means");
+        job.setJarByClass(ConvergenceKMeans.class);
+
+        int R = Integer.parseInt(args[0]);
+
+        for (int i = 0; i < R; i++) // loop through R times
+        {
+            done = false;
+            job.setMapperClass(ConvergenceKMeans.KMapper.class);
+
+            if (i + 1 == R || converged) // if convergence == true || if i+1 = R, then: Final iteration reducer for job
+            {
+                job.setReducerClass(ConvergenceKMeans.FinalReducer.class);
+            }
+            else
+                job.setReducerClass(ConvergenceKMeans.CentroidsReducer.class);
+
+            job.setMapOutputKeyClass(Text.class);
+            job.setMapOutputValueClass(Text.class);
+
+            job.setOutputKeyClass(Text.class);
+            job.setOutputValueClass(Text.class);
+
+            if (i != 0)
+            {
+                job.addFileToClassPath(new Path(args[2] + (i) + "/part-r-00000"));
+            }
+            else
+                job.addFileToClassPath(new Path(args[3]));
+
+            NLineInputFormat.addInputPath(job, new Path(args[1]));
+            FileOutputFormat.setOutputPath(job, new Path(args[2] + (i + 1)));
+
+            while (!done)
+                done = job.waitForCompletion(true);
+
+            if (converged)
+                break;
+
+            // Configuration for next job
+            conf = new Configuration();
+            job = Job.getInstance(conf, "K Means Iterator"+i);
+
+            // Must be later than first iteration to check convergence, otherwise FileNotFound Error occurs
+            if (i > 0)
+                converged = checkConvergence(i, args[2], args[3]);
+        }
+        System.exit(done ? 0 : 1);
     }
 }
