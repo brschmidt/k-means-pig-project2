@@ -13,7 +13,7 @@ public class SimpleKMeansTest {
         // R argument
         input[0] = String.valueOf(1);
         // input data for 1st run
-        input[1] = "/Users/bailey/DS4433_home/IdeaProjects/k-means-pig-project2/data-points.csv";
+        input[1] = "/Users/bailey/DS4433_home/IdeaProjects/k-means-pig-project2/data-clusters.csv";
         // output location for 1st run
         input[2] = "/Users/bailey/DS4433_home/IdeaProjects/k-means-pig-project2/output/simple-test1/iteration";
         // K seeds input
@@ -39,7 +39,7 @@ public class SimpleKMeansTest {
         // R argument
         input[0] = String.valueOf(10);
         // input data for 1st run
-        input[1] = "/Users/bailey/DS4433_home/IdeaProjects/k-means-pig-project2/data-points.csv";
+        input[1] = "/Users/bailey/DS4433_home/IdeaProjects/k-means-pig-project2/data-clusters.csv";
         // output location for 1st run
         input[2] = "/Users/bailey/DS4433_home/IdeaProjects/k-means-pig-project2/output/simple-test2/iteration";
         // K seeds input

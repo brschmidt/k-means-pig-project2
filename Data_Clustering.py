@@ -20,7 +20,7 @@ y3 = np.random.uniform(center3[1], center3[1] + distance, size=(420000,))
 output = ((x1, y1), (x2, y2), (x3, y3))
 with open('data-clusters.csv', 'w', newline='') as csvfile:
     for cluster in output:
-        writer = csv.writer(csvfile, delimiter=' ',
+        writer = csv.writer(csvfile, delimiter=',',
                                 quotechar='|', quoting=csv.QUOTE_MINIMAL)
         for x, y in zip(cluster[0], cluster[1]):
             writer.writerow([x,y])

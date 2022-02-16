@@ -12,7 +12,7 @@ public class KMeansData {
     {
         FileWriter myWriter = new FileWriter("data-points.csv");
 
-        for (int i = 0; i < 1000000; i++) // 1,000,000 data points
+        for (int i = 0; i < 1000; i++) // 1,000,000 data points
         {
             int x = generateInt();
             int y = generateInt();
@@ -43,16 +43,17 @@ public class KMeansData {
 
     public static void main(String[] args)
     {
-        // Write data points into local csv
+        // Write data points into local csv (* use Data_Clustering.py to generate semi-random clustered data points *)
         try {
             writeData();
         } catch (IOException e) {
             System.out.println("An Error Occurred.");
             e.printStackTrace();
         }
+
         // Write seed points into local csv
         try {
-            writeSeeds(3);
+            writeSeeds(2); // Change K to adjust number of initial center seeds
         } catch (IOException e) {
             System.out.println("An Error Occurred.");
             e.printStackTrace();
