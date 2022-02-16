@@ -13,7 +13,7 @@ public class ConvergenceKMeansTest {
         // R argument
         input[0] = String.valueOf(20);
         // input data for 1st run
-        input[1] = "/Users/bailey/DS4433_home/IdeaProjects/k-means-pig-project2/data-points.csv";
+        input[1] = "/Users/bailey/DS4433_home/IdeaProjects/k-means-pig-project2/data-clusters.csv";
         // output location for 1st run
         input[2] = "/Users/bailey/DS4433_home/IdeaProjects/k-means-pig-project2/output/convergence-test/iteration";
         // K seeds input

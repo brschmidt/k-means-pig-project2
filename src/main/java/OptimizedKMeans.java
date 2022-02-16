@@ -11,13 +11,19 @@ import org.apache.hadoop.util.GenericOptionsParser;
 
 import java.io.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.TreeMap;
 import java.util.Map;
 
+/*
+Class to satisfy Part 1.4 & 1.5:
+    1.4 - convergence criteria
+    1.5 - output variations
+    */
 public class OptimizedKMeans {
 
     // Threshold for determining convergence
-    protected static final int CONVERGENCE_CRITERIA = 1000;
+    protected static final int CONVERGENCE_CRITERIA = 1;
 
     // Calculates euclidean distance between two x,y points
     private static double distanceBetweenTwo(double x1, double y1, double x2, double y2) {
@@ -34,8 +40,10 @@ public class OptimizedKMeans {
 
         double avgDiff;
         double diff = 0;
+        int size;
+        int trueCount = 0;
 
-        if (i <= 1) {
+        if (i == 1) {
             String currCentroids = filePath + (i) + "/part-r-00000";
 
             BufferedReader last = new BufferedReader(new FileReader(seedsFilePath));
@@ -45,8 +53,7 @@ public class OptimizedKMeans {
             while ((line = last.readLine()) != null) {
                 String[] temp = line.split(",");
                 double tempX = Double.parseDouble(temp[0]);
-                String[] bool = temp[1].split("\t"); // separate boolean from y-value
-                double tempY = Double.parseDouble(bool[0]);
+                double tempY = Double.parseDouble(temp[1]);
                 lastCentroidList.add(new double[]{tempX, tempY});
             }
             last.close();
@@ -57,10 +64,12 @@ public class OptimizedKMeans {
                 String[] bool = temp[1].split("\t"); // separate boolean from y-value
                 double tempY = Double.parseDouble(bool[0]);
                 currCentroidList.add(new double[]{tempX, tempY});
+
+                if (Boolean.parseBoolean(bool[1])) trueCount++;
             }
             current.close();
 
-            int size = currCentroidList.size();
+            size = currCentroidList.size();
 
             for (int j = 0; j < size; j++) {
                 double[] tup1 = lastCentroidList.get(j);
@@ -68,9 +77,9 @@ public class OptimizedKMeans {
                 diff += Math.abs(distanceBetweenTwo(tup1[0], tup1[1], tup2[0], tup2[1]));
             }
             avgDiff = diff / size;
+        }
 
-            return avgDiff <=CONVERGENCE_CRITERIA;
-        } else {
+        else {
             String lastCentroids = filePath + (i - 1) + "/part-r-00000";
             String currCentroids = filePath + (i) + "/part-r-00000";
 
@@ -93,10 +102,12 @@ public class OptimizedKMeans {
                 String[] bool = temp[1].split("\t"); // separate boolean from y-value
                 double tempY = Double.parseDouble(bool[0]);
                 currCentroidList.add(new double[]{tempX, tempY});
+
+                if (Boolean.parseBoolean(bool[1])) trueCount++;
             }
             current.close();
 
-            int size = lastCentroidList.size();
+            size = currCentroidList.size();
 
             for (int j = 0; j < size; j++) {
                 double[] tup1 = lastCentroidList.get(j);
@@ -104,9 +115,10 @@ public class OptimizedKMeans {
                 diff += Math.abs(distanceBetweenTwo(tup1[0], tup1[1], tup2[0], tup2[1]));
             }
             avgDiff = diff / size;
-
-            return avgDiff <=CONVERGENCE_CRITERIA;
         }
+
+        return trueCount == size || avgDiff <= CONVERGENCE_CRITERIA;
+
     }
 
     // Mapper for data points to centroids
@@ -116,6 +128,7 @@ public class OptimizedKMeans {
         private ArrayList<double[]> centroids;
         private BufferedReader brReader;
         private TreeMap<Double, double[]> distMap;
+        private TreeMap<Double, Boolean> conMap;
 
         enum COUNTERS {
             FILE_EXISTS, FILE_NOT_FOUND, SOME_OTHER_ERROR
@@ -125,6 +138,7 @@ public class OptimizedKMeans {
         protected void setup(Context context) throws IOException {
             centroids = new ArrayList<>();
             distMap = new TreeMap<>(); // Map of format <distance, tuple>
+            conMap = new TreeMap<>(); // Map of format <tuple, converged>
 
             Path[] filePath = context.getFileClassPaths();
 
@@ -145,13 +159,18 @@ public class OptimizedKMeans {
                 // Read each line, split and load to HashMap
                 while ((lineIn = brReader.readLine()) != null) {
 
-                    String[] line = lineIn.split(",");
+                    String[] line = lineIn.split(","); // separate x & y values
                     String[] line2 = line[1].split("\t"); // separate boolean from y-value
 
                     double x = Double.parseDouble(line[0].trim());
                     double y = Double.parseDouble(line2[0].trim());
+                    double[] tuple = new double[]{x, y};
 
-                    centroids.add(new double[]{x, y});
+                    String b = (line2.length > 1)? line2[1].trim() : "";
+                    boolean con = !b.isEmpty() && Boolean.parseBoolean(b); // if the centroid has converged
+
+                    centroids.add(tuple);
+                    conMap.put(x+y, con);
                 }
             } catch (FileNotFoundException e) {
                 e.printStackTrace();
@@ -187,7 +206,8 @@ public class OptimizedKMeans {
             }
 
             String cent = distMap.get(shortest)[0] + "," + distMap.get(shortest)[1]; // create centroid string (comma separated)
-            centroid.set(cent); // set centroid string to be written out
+            centroid.set(cent+","+conMap.get(distMap.get(shortest)[0]+distMap.get(shortest)[1])); // set centroid string to be written out
+//            centroid.set(cent); // set centroid string to be written out
 
             String pnt = x1 + "," + y1; // create point string (comma separated)
             point.set(pnt); // set point string to be written out
@@ -199,6 +219,7 @@ public class OptimizedKMeans {
 
     // Combiner for iterations of K Means
     public static class CentroidsCombiner extends Reducer<Text, Text, Text, Text> {
+        StringBuilder pointsOut = new StringBuilder();
         private double xSum = 0;
         private double ySum = 0;
         private double count = 0;
@@ -212,18 +233,23 @@ public class OptimizedKMeans {
                 double pointX = Double.parseDouble(pointIn[0]);
                 double pointY = Double.parseDouble(pointIn[1]);
 
+                pointsOut.append("[").append(pointX).append(",").append(pointY).append("]").append("\t");
                 xSum += pointX; // sum of X values
                 ySum += pointY; // sum of Y values
 
                 count++; // count of associated points
             }
-            context.write(key, new Text(xSum+","+ySum+","+count));
+
+            context.write(key, new Text(xSum + "," + ySum + "," + count + "," + pointsOut.toString()));
 
         }
     }
 
-    // Single Reducer for iteration of K Means
-    public static class SingleReducer extends Reducer<Text, Text, Text, Text> {
+    // Logic for V1 & V2 is identical save for the output, determined by outputFlag argument in main function
+
+    // Single Reducer (version 1) for iteration of K Means
+        // output centroids and boolean indicating whether convergence has been reached
+    public static class SingleReducerV1 extends Reducer<Text, Text, Text, Text> {
         private final Text newCentroid = new Text();
         private final BooleanWritable converged = new BooleanWritable();
         private double xSum = 0;
@@ -241,7 +267,7 @@ public class OptimizedKMeans {
             for (Text point : values) {
                 String[] aggValues = point.toString().split(",");
 
-                if(aggValues.length > 2) // If Combiner output
+                if (aggValues.length > 2) // If Combiner output
                 {
                     xSum = Double.parseDouble(aggValues[0]);
                     ySum = Double.parseDouble(aggValues[1]);
@@ -259,38 +285,73 @@ public class OptimizedKMeans {
                     count++; // count of associated point
                 }
             }
-
             double xAvg = xSum / count; // new centroid x value
             double yAvg = ySum / count; // new centroid y value
 
-            converged.set(distanceBetweenTwo(keyX, keyY, xAvg, yAvg) <=CONVERGENCE_CRITERIA);
+            converged.set(distanceBetweenTwo(keyX, keyY, xAvg, yAvg) <= CONVERGENCE_CRITERIA);
 
             String newCentroidStr = xAvg + "," + yAvg;
             newCentroid.set(newCentroidStr);
 
             context.write(newCentroid, new Text(converged.toString()));
-            }
         }
+    }
 
-//    // unused function
-//    public static void writeCentroids(int iteration, String fileIn) throws IOException {
-//        // args[2]+iteration+"/part-r-0000
-//        File toRead = new File(fileIn + iteration + "/part-r-00000");
-//        BufferedReader br = new BufferedReader(new FileReader(toRead));
-//
-//        String fileName = String.format("centroid-iteration%d.csv", iteration);
-////        String fileName = "new-centroids.csv";
-//        FileWriter myWriter = new FileWriter(fileName);
-//
-//        String line;
-//
-//        while ((line = br.readLine()) != null) {
-//            myWriter.write(line + "\n");
-//        }
-//
-//        br.close();
-//        myWriter.close();
-//    }
+    // Single Reducer (version 2) for iteration of K Means
+        // output centroids and their final clustered data points
+    public static class SingleReducerV2 extends Reducer<Text, Text, Text, Text> {
+        private final Text newCentroid = new Text();
+        private final ArrayList<double[]> points = new ArrayList<>();
+        private final BooleanWritable converged = new BooleanWritable();
+        private double xSum = 0;
+        private double ySum = 0;
+        private double count = 0;
+
+        @Override
+        protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+            StringBuilder pointsOut = new StringBuilder();
+            String[] keyIn = key.toString().split(",");
+            double keyX, keyY;
+            keyX = Double.parseDouble(keyIn[0]);
+            keyY = Double.parseDouble(keyIn[1]);
+
+            for (Text point : values) {
+                String[] aggValues = point.toString().split(",");
+
+                if (aggValues.length > 2) // If Combiner output
+                {
+                    xSum = Double.parseDouble(aggValues[0]);
+                    ySum = Double.parseDouble(aggValues[1]);
+                    count = Double.parseDouble(aggValues[2]);
+
+                    String[] associatedPoints = aggValues[3].split("\t");
+                    int size = associatedPoints.length;
+                    for (String associatedPoint : associatedPoints)
+                        pointsOut.append(associatedPoint).append(",");
+
+                    break;
+                }
+                else // Else Mapper output
+                {
+                    double pointX = Double.parseDouble(aggValues[0]);
+                    double pointY = Double.parseDouble(aggValues[1]);
+
+                   pointsOut.append(Arrays.toString(new double[]{pointX, pointY}));
+
+                    xSum += pointX; // sum of X values
+                    ySum += pointY; // sum of Y values
+
+                    count++; // count of associated point
+                }
+            }
+            double xAvg = xSum / count; // new centroid x value
+            double yAvg = ySum / count; // new centroid y value
+
+            String newCentroidStr = xAvg + "," + yAvg;
+            newCentroid.set(newCentroidStr);
+            context.write(newCentroid, new Text(pointsOut.toString()));
+        }
+    }
 
     public void debug(String[] args) throws IOException, InterruptedException, ClassNotFoundException {
         Configuration conf = new Configuration();
@@ -299,8 +360,77 @@ public class OptimizedKMeans {
         boolean done = false;
         boolean converged = false;
 
+        if (otherArgs.length < 5) {
+            System.err.println("Error: please provide 5 arguments");
+            System.exit(2);
+        }
+
+        Job job = Job.getInstance(conf, "K Means");
+        job.setJarByClass(OptimizedKMeans.class);
+
+        int R = Integer.parseInt(args[0]);
+        int outputFlag = Integer.parseInt(args[4]);
+        int i = 0;
+
+        while (!converged && i < R) // loop through R times
+        {
+            done = false;
+            job.setMapperClass(OptimizedKMeans.KMapper.class);
+
+            if (outputFlag == 0)
+                job.setReducerClass(OptimizedKMeans.SingleReducerV1.class);
+            else if (outputFlag == 1)
+                job.setReducerClass(OptimizedKMeans.SingleReducerV2.class);
+            if (converged && outputFlag == 1)
+                job.setCombinerClass(OptimizedKMeans.CentroidsCombiner.class);
+
+            job.setMapOutputKeyClass(Text.class);
+            job.setMapOutputValueClass(Text.class);
+
+            job.setOutputKeyClass(Text.class);
+            job.setOutputValueClass(Text.class);
+
+            if (i != 0)
+            {
+                job.addFileToClassPath(new Path(args[2] + (i) + "/part-r-00000"));
+            }
+            else
+                job.addFileToClassPath(new Path(args[3]));
+
+            NLineInputFormat.addInputPath(job, new Path(args[1]));
+            FileOutputFormat.setOutputPath(job, new Path(args[2] + (i + 1)));
+
+            while (!done)
+                done = job.waitForCompletion(true);
+
+            // Configuration for next job
+            conf = new Configuration();
+            job = Job.getInstance(conf, "K Means Iterator"+i);
+
+            // Must be later than first iteration to check convergence, otherwise FileNotFound Error occurs
+            if (i > 0)
+                converged = checkConvergence(i, args[2], args[3]);
+            i++; // increment i
+        }
+        System.exit(done ? 0 : 1);
+    }
+
+    public static void main(String[] args) throws IOException, InterruptedException, ClassNotFoundException {
+
+        // Else just return new centroids - (diff reducer for final iterations/ convergence?)
+        // args[0] = R (iterations)
+        // args[1] = input filepath for first iteration
+        // args[2] = output path for first iteration/ input path for subsequent iterations
+        // args[3] = path to seed-points data file
+
+        Configuration conf = new Configuration();
+        String[] otherArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
+
+        boolean done = false;
+        boolean converged = false;
+
         if (otherArgs.length < 3) {
-            System.err.println("Error: please provide 3 paths");
+            System.err.println("Error: please provide 5 arguments");
             System.exit(2);
         }
 
@@ -314,7 +444,7 @@ public class OptimizedKMeans {
             done = false;
             job.setMapperClass(OptimizedKMeans.KMapper.class);
 
-            job.setReducerClass(OptimizedKMeans.SingleReducer.class);
+            job.setReducerClass(OptimizedKMeans.SingleReducerV1.class);
             job.setCombinerClass(OptimizedKMeans.CentroidsCombiner.class);
 
             job.setMapOutputKeyClass(Text.class);
@@ -346,17 +476,5 @@ public class OptimizedKMeans {
                 converged = checkConvergence(i, args[2], args[3]);
         }
         System.exit(done ? 0 : 1);
-    }
-
-    public static void main(String[] args) {
-
-        //TODO
-        // Else just return new centroids - (diff reducer for final iterations/ convergence?)
-        // args[0] = R (iterations)
-        // args[1] = input filepath for first iteration
-        // args[2] = output path for first iteration/ input path for subsequent iterations
-        // args[3] = path to seed-points data file
-
-        // ...
     }
 }

@@ -23,7 +23,7 @@ Class to satisfy Part 1.3:
 public class ConvergenceKMeans {
 
     // Threshold for determining convergence
-    protected static final int CONVERGENCE_CRITERIA = 1000;
+    protected static final int CONVERGENCE_CRITERIA = 1;
 
     // Calculates euclidean distance between two x,y points
     private static double distanceBetweenTwo(double x1, double y1, double x2, double y2) {
@@ -41,7 +41,7 @@ public class ConvergenceKMeans {
         double avgDiff;
         double diff = 0;
 
-        if (i <= 1)
+        if (i == 1)
         {
             String currCentroids = filePath + (i) + "/part-r-00000";
 
@@ -73,8 +73,6 @@ public class ConvergenceKMeans {
                 diff += Math.abs(distanceBetweenTwo(tup1[0], tup1[1], tup2[0], tup2[1]));
             }
             avgDiff = diff / size;
-
-            return avgDiff <=CONVERGENCE_CRITERIA;
         }
         else
         {
@@ -101,7 +99,7 @@ public class ConvergenceKMeans {
             }
             current.close();
 
-            int size = lastCentroidList.size();
+            int size = currCentroidList.size();
 
             for (int j = 0; j < size; j++) {
                 double[] tup1 = lastCentroidList.get(j);
@@ -109,9 +107,9 @@ public class ConvergenceKMeans {
                 diff += Math.abs(distanceBetweenTwo(tup1[0], tup1[1], tup2[0], tup2[1]));
             }
             avgDiff = diff / size;
-
-            return avgDiff <=CONVERGENCE_CRITERIA;
         }
+
+        return avgDiff <= CONVERGENCE_CRITERIA;
     }
 
     // Mapper for data points to centroids
@@ -279,7 +277,7 @@ public class ConvergenceKMeans {
         boolean converged = false;
 
         if (otherArgs.length < 3) {
-            System.err.println("Error: please provide 3 paths");
+            System.err.println("Error: please provide 2 paths");
             System.exit(2);
         }
 
