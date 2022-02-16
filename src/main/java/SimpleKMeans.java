@@ -249,8 +249,9 @@ public class SimpleKMeans {
         boolean done = false;
 
         if (otherArgs.length < 3) {
-            System.err.println("Error: please provide 2 paths");
-            System.exit(2);
+          
+          System.err.println("Error: please provide 3 paths");
+          System.exit(2);
         }
 
         Job job = Job.getInstance(conf, "K Means");
