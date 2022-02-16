@@ -306,7 +306,7 @@ public class OptimizedKMeans {
         private double xSum = 0;
         private double ySum = 0;
         private double count = 0;
-
+      
         @Override
         protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
             StringBuilder pointsOut = new StringBuilder();
@@ -430,6 +430,7 @@ public class OptimizedKMeans {
         boolean converged = false;
 
         if (otherArgs.length < 5) {
+
             System.err.println("Error: please provide 5 arguments");
             System.exit(2);
         }
@@ -442,6 +443,7 @@ public class OptimizedKMeans {
         int i = 0;
 
         while (!converged && i < R) // loop through R times
+
         {
             done = false;
             job.setMapperClass(OptimizedKMeans.KMapper.class);
@@ -450,8 +452,8 @@ public class OptimizedKMeans {
                 job.setReducerClass(OptimizedKMeans.SingleReducerV1.class);
             else if (outputFlag == 1)
                 job.setReducerClass(OptimizedKMeans.SingleReducerV2.class);
-            if (converged && outputFlag == 1)
-                job.setCombinerClass(OptimizedKMeans.CentroidsCombiner.class);
+                
+            job.setCombinerClass(OptimizedKMeans.CentroidsCombiner.class);
 
             job.setMapOutputKeyClass(Text.class);
             job.setMapOutputValueClass(Text.class);
@@ -464,6 +466,7 @@ public class OptimizedKMeans {
                 job.addFileToClassPath(new Path(args[2] + (i) + "/part-r-00000"));
             }
             else
+
                 job.addFileToClassPath(new Path(args[3]));
 
             NLineInputFormat.addInputPath(job, new Path(args[1]));
