@@ -22,6 +22,9 @@ Class to satisfy Part 1.3:
     */
 public class ConvergenceKMeans {
 
+    // Threshold for determining convergence
+    protected static final int CONVERGENCE_CRITERIA = 1000;
+
     // Calculates euclidean distance between two x,y points
     private static double distanceBetweenTwo(double x1, double y1, double x2, double y2) {
         double xDist = x2 - x1;
@@ -29,7 +32,7 @@ public class ConvergenceKMeans {
         return Math.sqrt(xDist * xDist + yDist * yDist);
     }
 
-    // Returns true if avg distance between two sets of centroids is <= 1000, otherwise returns false
+    // Returns true if avg distance between two sets of centroids is <=10, otherwise returns false
     private static boolean checkConvergence(int i, String filePath, String seedsFilePath) throws IOException {
 
         ArrayList<double[]> lastCentroidList = new ArrayList<>();
@@ -71,7 +74,7 @@ public class ConvergenceKMeans {
             }
             avgDiff = diff / size;
 
-            return avgDiff <= 1000;
+            return avgDiff <=CONVERGENCE_CRITERIA;
         }
         else
         {
@@ -107,7 +110,7 @@ public class ConvergenceKMeans {
             }
             avgDiff = diff / size;
 
-            return avgDiff <= 1000;
+            return avgDiff <=CONVERGENCE_CRITERIA;
         }
     }
 
@@ -276,7 +279,7 @@ public class ConvergenceKMeans {
         boolean converged = false;
 
         if (otherArgs.length < 3) {
-            System.err.println("Error: please provide 2 paths");
+            System.err.println("Error: please provide 3 paths");
             System.exit(2);
         }
 

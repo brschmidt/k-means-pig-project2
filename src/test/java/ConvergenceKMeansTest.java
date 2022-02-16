@@ -11,7 +11,7 @@ public class ConvergenceKMeansTest {
         /* TODO change to local file paths in your own system */
 
         // R argument
-        input[0] = String.valueOf(10);
+        input[0] = String.valueOf(20);
         // input data for 1st run
         input[1] = "/Users/bailey/DS4433_home/IdeaProjects/k-means-pig-project2/data-points.csv";
         // output location for 1st run
